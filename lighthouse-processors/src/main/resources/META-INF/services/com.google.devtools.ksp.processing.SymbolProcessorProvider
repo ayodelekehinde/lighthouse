@@ -1,1 +1,2 @@
 com.midstane.lighthouse.repository.processor.CrudRepositoryProcessorProvider
+com.midstane.lighthouse.repository.processor.MapperProcessorProvider

@@ -27,12 +27,29 @@ data class Finder(
     val functionName: String,
     val parameterName: String,
     val property: EntityProperty,
+    val kind: DerivedQueryKind = DerivedQueryKind.FindOne,
 )
+
+enum class DerivedQueryKind {
+    FindOne,
+    FindAll,
+    Exists,
+    Count,
+}
 
 data class KotlinType(
     val qualifiedName: String,
+    val nullable: Boolean = false,
+    val arguments: List<KotlinType> = emptyList(),
 ) {
-    val simpleName: String = qualifiedName.substringAfterLast('.')
+    val simpleName: String = qualifiedName.substringAfterLast('.').removeSuffix("?")
+    val displayName: String = buildString {
+        append(qualifiedName)
+        if (arguments.isNotEmpty()) {
+            append(arguments.joinToString(prefix = "<", postfix = ">") { it.displayName })
+        }
+        if (nullable) append("?")
+    }
 }
 
 data class ColumnOptions(
@@ -47,6 +64,8 @@ sealed interface ExposedColumn {
     data object Long : ExposedColumn
     data object String : ExposedColumn
     data object Text : ExposedColumn
+    data object Timestamp : ExposedColumn
+    data object Date : ExposedColumn
     data object Uuid : ExposedColumn
     data class Enum(val type: KotlinType) : ExposedColumn
 }

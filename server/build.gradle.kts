@@ -40,6 +40,7 @@ dependencies {
 
     testImplementation(kotlin("test"))
     testImplementation(ktorLibs.server.testHost)
+    implementation("io.sentry:sentry:8.43.0")
 }
 val compileKotlin: KotlinCompile by tasks
 compileKotlin.compilerOptions {

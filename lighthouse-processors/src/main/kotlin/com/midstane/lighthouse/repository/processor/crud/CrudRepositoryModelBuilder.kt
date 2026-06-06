@@ -7,11 +7,13 @@ import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSDeclaration
 import com.google.devtools.ksp.symbol.KSFunctionDeclaration
+import com.google.devtools.ksp.symbol.Nullability
 import com.google.devtools.ksp.symbol.KSType
 import java.io.File
 
 class CrudRepositoryModelBuilder(
     private val logger: KSPLogger,
+    private val finderModelBuilder: FinderModelBuilder = FinderModelBuilder(),
 ) {
     fun build(repository: KSClassDeclaration): CrudRepositoryModel? {
         if (repository.classKind != ClassKind.INTERFACE) {
@@ -56,10 +58,10 @@ class CrudRepositoryModelBuilder(
                 val hasUnique = parameter.hasAnnotation(UNIQUE) || propertyDeclaration.hasAnnotation(UNIQUE)
                 val hasAutogenerate =
                     parameter.hasAnnotation(AUTOGENERATE) || propertyDeclaration.hasAnnotation(AUTOGENERATE)
-                val column = type.toExposedColumn(declaration, hasText)
+                val column = type.toExposedColumn(declaration, hasText, name)
                 if (column == null) {
                     logger.error(
-                        "Unsupported CRUD property type '${type.qualifiedName}'. Supported types: String, Int, Long, Boolean, UUID, and enums.",
+                        "Unsupported CRUD property type '${type.qualifiedName}'. Supported types: String, Int, Long, Boolean, kotlin.time.Instant, kotlinx.datetime.LocalDate, UUID, and enums.",
                         entity,
                     )
                     return null
@@ -94,56 +96,89 @@ class CrudRepositoryModelBuilder(
             return null
         }
 
+        val repositoryEntity = entity.toKotlinType()
+        val finderResults = repository.declarations
+            .filterIsInstance<KSFunctionDeclaration>()
+            .map { function -> function.toFinderResult(repositoryEntity, properties) }
+            .toList()
+        if (finderResults.any { it is FinderBuildResult.Error }) return null
+        val finders = finderResults
+            .filterIsInstance<FinderBuildResult.Success>()
+            .map { it.finder }
+
         return CrudRepositoryModel(
             packageName = repository.packageName.asString(),
             repositoryName = repository.simpleName.asString(),
             generatedName = configuredName.ifBlank { "Generated${repository.simpleName.asString()}" },
-            entity = entity.toKotlinType(),
+            entity = repositoryEntity,
             bindingScope = bindingScopeType.toKotlinType(),
             tableName = tableName,
             idProperty = idProperty,
             properties = properties,
-            finders = repository.declarations
-                .filterIsInstance<KSFunctionDeclaration>()
-                .mapNotNull { function -> function.toFinder(properties) }
-                .toList(),
+            finders = finders,
             primaryKeyIsInherited = idProperty.isInheritedLightTableId(),
         )
     }
 
-    private fun KSFunctionDeclaration.toFinder(properties: List<EntityProperty>): Finder? {
-        val propertyName = simpleName.asString()
-            .takeIf { it.startsWith("findBy") }
-            ?.removePrefix("findBy")
-            ?: return null
+    private fun KSFunctionDeclaration.toFinderResult(entity: KotlinType, properties: List<EntityProperty>): FinderBuildResult {
+        val result = finderModelBuilder.build(toFinderFunction() ?: return FinderBuildResult.Ignored, entity, properties)
+        if (result is FinderBuildResult.Error) {
+            logger.error(result.message, this)
+        }
+        return result
+    }
 
-        if (parameters.size != 1) return null
+    private fun KSFunctionDeclaration.toFinderFunction(): FinderFunction? {
+        val returnType = returnType?.resolve()?.toKotlinType() ?: return null
+        val finderParameters = parameters.map { parameter ->
+            val name = parameter.name?.asString() ?: run {
+                logger.error("Finder '${simpleName.asString()}' parameters must be named.", parameter)
+                return null
+            }
+            FinderParameter(
+                name = name,
+                type = parameter.type.resolve().toKotlinType(),
+            )
+        }
 
-        val property = properties.firstOrNull { it.name.equals(propertyName, ignoreCase = true) }
-            ?: return null
-
-        return Finder(
-            functionName = simpleName.asString(),
-            parameterName = parameters.single().name?.asString() ?: return null,
-            property = property,
+        return FinderFunction(
+            name = simpleName.asString(),
+            parameters = finderParameters,
+            returnType = returnType,
         )
     }
 
     private fun KSType.toKotlinType(): KotlinType {
-        return declaration.toKotlinType()
+        return declaration.toKotlinType(
+            nullable = nullability == Nullability.NULLABLE,
+            arguments = arguments.mapNotNull { argument -> argument.type?.resolve()?.toKotlinType() },
+        )
     }
 
-    private fun KSDeclaration.toKotlinType(): KotlinType {
-        return KotlinType(qualifiedName?.asString() ?: simpleName.asString())
+    private fun KSDeclaration.toKotlinType(
+        nullable: Boolean = false,
+        arguments: List<KotlinType> = emptyList(),
+    ): KotlinType {
+        return KotlinType(
+            qualifiedName = qualifiedName?.asString() ?: simpleName.asString(),
+            nullable = nullable,
+            arguments = arguments,
+        )
     }
 
-    private fun KotlinType.toExposedColumn(declaration: KSDeclaration, text: Boolean): ExposedColumn? {
+    private fun KotlinType.toExposedColumn(declaration: KSDeclaration, text: Boolean, name: String): ExposedColumn? {
+        if (name.isAutomaticTimestampProperty() && supportsAutomaticTimestampMapping()) {
+            return ExposedColumn.Timestamp
+        }
+
         return when (qualifiedName) {
             "kotlin.Boolean" -> ExposedColumn.Boolean
             "kotlin.Int" -> ExposedColumn.Int
             "kotlin.Long" -> ExposedColumn.Long
             "kotlin.String" -> if (text) ExposedColumn.Text else ExposedColumn.String
-            "java.util.UUID" -> ExposedColumn.Uuid
+            "kotlin.time.Instant" -> ExposedColumn.Timestamp
+            "kotlinx.datetime.LocalDate" -> ExposedColumn.Date
+            "kotlin.uuid.Uuid" -> ExposedColumn.Uuid
             else -> {
                 val classDeclaration = declaration as? KSClassDeclaration
                 if (classDeclaration?.classKind == ClassKind.ENUM_CLASS) {
@@ -153,6 +188,14 @@ class CrudRepositoryModelBuilder(
                 }
             }
         }
+    }
+
+    private fun String.isAutomaticTimestampProperty(): Boolean {
+        return this == "createdAt" || this == "updatedAt"
+    }
+
+    private fun KotlinType.supportsAutomaticTimestampMapping(): Boolean {
+        return qualifiedName == "kotlin.String" || qualifiedName == "kotlin.time.Instant"
     }
 
     private fun ExposedColumn.supportsAutogenerate(): Boolean {
