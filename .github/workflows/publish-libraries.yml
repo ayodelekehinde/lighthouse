@@ -3,8 +3,13 @@ name: Build and Publish Libraries
 on:
   push:
     tags:
-      - "v*"
+      - "*"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Library version to publish"
+        required: true
+        default: "0.0.1"
 
 permissions:
   contents: read
@@ -29,11 +34,22 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Resolve library version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="${{ inputs.version }}"
+          fi
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
       - name: Build and test
-        run: ./gradlew check
+        run: ./gradlew check -PlibraryVersion=${{ steps.version.outputs.version }}
 
       - name: Publish libraries to GitHub Packages
-        run: ./gradlew :core:publish :lighthouse-annotations:publish :lighthouse-processors:publish
+        run: ./gradlew :core:publish :annotations:publish :processors:publish -PlibraryVersion=${{ steps.version.outputs.version }}
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

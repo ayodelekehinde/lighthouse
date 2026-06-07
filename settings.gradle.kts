@@ -21,6 +21,6 @@ plugins {
 }
 include(":client")
 include(":core")
-include(":lighthouse-annotations")
-include(":lighthouse-processors")
+include(":annotations")
+include(":processors")
 include(":server")

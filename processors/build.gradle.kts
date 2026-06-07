@@ -9,7 +9,7 @@ kotlin {
 }
 
 dependencies {
-    implementation(project(":lighthouse-annotations"))
+    implementation(project(":annotations"))
     implementation(libs.ksp.symbol.processing.api)
 
     testImplementation(kotlin("test"))

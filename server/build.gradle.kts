@@ -21,7 +21,7 @@ kotlin {
 }
 dependencies {
     implementation(project(":core"))
-    implementation(project(":lighthouse-annotations"))
+    implementation(project(":annotations"))
     implementation(ktorLibs.serialization.kotlinx.json)
     implementation(ktorLibs.server.auth)
     implementation(ktorLibs.server.auth.jwt)
@@ -39,7 +39,7 @@ dependencies {
     implementation(libs.logback.classic)
     implementation(libs.postgresql)
     implementation(libs.r2dbc.postgresql)
-    ksp(project(":lighthouse-processors"))
+    ksp(project(":processors"))
 
     testImplementation(kotlin("test"))
     testImplementation(ktorLibs.server.testHost)

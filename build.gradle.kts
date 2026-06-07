@@ -10,8 +10,8 @@ plugins {
 }
 
 subprojects {
-    group = "com.midstane"
-    version = "0.0.1"
+    group = "com.midstane.lighthouse"
+    version = providers.gradleProperty("libraryVersion").orElse("0.0.1").get()
 
     plugins.withId("maven-publish") {
         extensions.configure<PublishingExtension>("publishing") {
