@@ -7,6 +7,13 @@ import com.midstane.lighthouse.entity.User
 import com.midstane.lighthouse.repository.annotations.Mapper
 import com.midstane.lighthouse.repository.annotations.Mapping
 
+/**
+ * Maps between API DTOs and persistence entities.
+ *
+ * Same-name properties with the same type are generated automatically. The annotations below show
+ * the explicit cases: constants, renamed properties, nested source properties, and custom conversion
+ * expressions.
+ */
 @Mapper(bindingScope = LightHouseScope::class)
 interface UserMapper {
     @Mapping(target = "createdAt", expression = "\"\"")

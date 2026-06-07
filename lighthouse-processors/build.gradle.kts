@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
     jacoco
+    `maven-publish`
 }
 
 kotlin {
@@ -14,6 +15,23 @@ dependencies {
     testImplementation(kotlin("test"))
 }
 
+java {
+    withSourcesJar()
+    withJavadocJar()
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            from(components["java"])
+            pom {
+                name = "Lighthouse Processors"
+                description = "KSP processors that generate Lighthouse repositories and mappers."
+            }
+        }
+    }
+}
+
 tasks.test {
     useJUnitPlatform()
     finalizedBy(tasks.jacocoTestReport)
@@ -22,8 +40,10 @@ tasks.test {
 val processorCoverageClasses = layout.buildDirectory.dir("classes/kotlin/main").map {
     fileTree(it) {
         exclude(
-            "com/midstane/lighthouse/repository/processor/CrudRepositoryProcessor*",
-            "com/midstane/lighthouse/repository/processor/crud/CrudRepositoryModelBuilder*",
+            "**/com/midstane/lighthouse/repository/processor/CrudRepositoryProcessor*.class",
+            "**/com/midstane/lighthouse/repository/processor/MapperProcessor*.class",
+            "**/com/midstane/lighthouse/repository/processor/crud/CrudRepositoryModelBuilder*.class",
+            "**/com/midstane/lighthouse/repository/processor/mapper/MapperModelBuilder*.class",
         )
     }
 }

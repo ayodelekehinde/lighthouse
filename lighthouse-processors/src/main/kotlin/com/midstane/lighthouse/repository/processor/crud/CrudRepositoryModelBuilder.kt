@@ -25,7 +25,6 @@ class CrudRepositoryModelBuilder(
         val entityType = annotation.requireType("entity", repository) ?: return null
         val bindingScopeType = annotation.requireType("bindingScope", repository) ?: return null
         val tableName = annotation.requireString("tableName", repository) ?: return null
-        val idPropertyName = annotation.requireString("primaryProperty", repository) ?: return null
         val configuredName = annotation.stringOrDefault("generatedName")
 
         val entity = entityType.declaration as? KSClassDeclaration ?: run {
@@ -34,19 +33,6 @@ class CrudRepositoryModelBuilder(
         }
 
         val entityProperties = entity.getAllProperties().associateBy { it.simpleName.asString() }
-        val annotatedPrimaryKeys = entity.primaryConstructor
-            ?.parameters
-            ?.mapNotNull { parameter ->
-                val name = parameter.name?.asString() ?: return@mapNotNull null
-                val propertyDeclaration = entityProperties[name]
-                name.takeIf { parameter.hasAnnotation(PRIMARY_KEY) || propertyDeclaration.hasAnnotation(PRIMARY_KEY) }
-            }
-            .orEmpty()
-        if (annotatedPrimaryKeys.size > 1) {
-            logger.error("Only one entity constructor property can be annotated with @PrimaryKey.", entity)
-            return null
-        }
-        val primaryPropertyName = annotatedPrimaryKeys.singleOrNull() ?: idPropertyName
         val properties = entity.primaryConstructor
             ?.parameters
             ?.mapNotNull { parameter ->
@@ -91,8 +77,8 @@ class CrudRepositoryModelBuilder(
             return null
         }
 
-        val idProperty = properties.firstOrNull { it.name == primaryPropertyName } ?: run {
-            logger.error("No entity constructor property named '$primaryPropertyName' was found.", entity)
+        val idProperty = properties.firstOrNull { it.name == "id" && it.type.qualifiedName == "kotlin.Long" } ?: run {
+            logger.error("Generated CRUD repositories require an entity constructor property named 'id' with type Long.", entity)
             return null
         }
 
@@ -116,7 +102,6 @@ class CrudRepositoryModelBuilder(
             idProperty = idProperty,
             properties = properties,
             finders = finders,
-            primaryKeyIsInherited = idProperty.isInheritedLightTableId(),
         )
     }
 
@@ -298,7 +283,5 @@ class CrudRepositoryModelBuilder(
             "com.midstane.lighthouse.repository.annotations.Autogenerate"
         const val TEXT =
             "com.midstane.lighthouse.repository.annotations.Text"
-        const val PRIMARY_KEY =
-            "com.midstane.lighthouse.repository.annotations.PrimaryKey"
     }
 }

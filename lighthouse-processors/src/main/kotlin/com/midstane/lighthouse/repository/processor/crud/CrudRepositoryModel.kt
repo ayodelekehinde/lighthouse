@@ -10,7 +10,6 @@ data class CrudRepositoryModel(
     val idProperty: EntityProperty,
     val properties: List<EntityProperty>,
     val finders: List<Finder>,
-    val primaryKeyIsInherited: Boolean = false,
 ) {
     val tableObjectName: String = "${entity.simpleName}Table"
 }

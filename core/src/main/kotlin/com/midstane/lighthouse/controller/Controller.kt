@@ -1,27 +1,29 @@
 package com.midstane.lighthouse.controller
 
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.HttpHeaders
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.plugins.BadRequestException
+import io.ktor.server.request.ContentTransformationException
+import io.ktor.server.request.header
 import io.ktor.server.request.receiveNullable
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
 import io.ktor.server.routing.Routing
-import io.ktor.util.reflect.TypeInfo
-import io.ktor.util.reflect.typeInfo
+import io.ktor.server.routing.delete
+import io.ktor.server.routing.get
+import io.ktor.server.routing.patch
+import io.ktor.server.routing.post
+import io.ktor.server.routing.put
 import kotlinx.serialization.Serializable
-import kotlin.runCatching
 
 interface Controller {
-    fun registerRoutes(routing: Routing)
+    val baseRoute: String
+        get() = ""
+
+    fun registerRoutes(routes: LighthouseRouting)
 }
 
-suspend inline fun <reified T> ApplicationCall.post(block: suspend T.() -> Unit) {
-    val body = runCatching { this.receiveNullable<T>() }.getOrThrow()
-    if (body == null) {
-        throw BadRequestException("Bad Request")
-    }
-    body.block()
-}
 @Serializable
 data class Success<T>(
     val success: Boolean,

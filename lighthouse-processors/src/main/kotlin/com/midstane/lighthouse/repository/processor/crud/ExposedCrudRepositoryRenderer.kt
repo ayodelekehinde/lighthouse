@@ -185,10 +185,6 @@ class ExposedCrudRepositoryRenderer {
         if (model.properties.none { it.name == "updatedAt" }) {
             appendLine("        val updatedAt = timestamp(\"updated_at\").defaultExpression(CurrentTimestamp)")
         }
-        if (!model.primaryKeyIsInherited) {
-            appendLine()
-            appendLine("        override val primaryKey = PrimaryKey(${model.idProperty.name})")
-        }
         appendLine("    }")
     }
 

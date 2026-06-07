@@ -40,47 +40,28 @@ class MapperFunctionModelBuilder {
 
         val assignments = spec.targetParameters.mapNotNull { target ->
             val requested = mappingsByTarget[target.name]
-            when {
-                requested?.expression?.isNotBlank() == true -> {
-                    PropertyAssignment(target.name, requested.expression)
-                }
-                requested?.source?.isNotBlank() == true -> {
-                    val source = spec.resolveSourcePath(requested.source)
-                        ?: return MapperFunctionBuildResult.Error(
-                            "Mapper function '${spec.name}' mapping for '${target.name}' references unknown source '${requested.source}'.",
-                        )
-                    if (source.type != target.type) {
-                        return MapperFunctionBuildResult.Error(
-                            "Mapper function '${spec.name}' mapping for '${target.name}' must be ${target.type.displayName}, but '${requested.source}' is ${source.type.displayName}.",
-                        )
-                    }
-                    PropertyAssignment(target.name, source.expression)
-                }
-                else -> {
-                    val candidates = spec.parameters.mapNotNull { parameter ->
-                        when {
-                            parameter.name == target.name && parameter.type == target.type -> parameter.name
-                            else -> parameter.properties
-                                .firstOrNull { property -> property.name == target.name && property.type == target.type }
-                                ?.let { "${parameter.name}.${it.name}" }
-                        }
-                    }
-                    when {
-                        candidates.size == 1 -> PropertyAssignment(target.name, candidates.single())
-                        candidates.size > 1 -> {
-                            return MapperFunctionBuildResult.Error(
-                                "Mapper function '${spec.name}' target '${target.name}' is ambiguous across multiple source parameters. Add an explicit @Mapping.",
-                            )
-                        }
-                        target.hasDefault -> null
-                        else -> {
-                            return MapperFunctionBuildResult.Error(
-                                "Mapper function '${spec.name}' cannot map target constructor property '${target.name}'. Add a matching source property, @Mapping source, @Mapping expression, or default value.",
-                            )
-                        }
-                    }
+            if (requested == null) {
+                when (val autoAssignment = spec.autoAssignment(target)) {
+                    AutoAssignment.Default -> return@mapNotNull null
+                    is AutoAssignment.Error -> return MapperFunctionBuildResult.Error(autoAssignment.message)
+                    is AutoAssignment.Success -> return@mapNotNull autoAssignment.assignment
                 }
             }
+
+            if (requested.expression.isNotBlank()) {
+                return@mapNotNull PropertyAssignment(target.name, requested.expression)
+            }
+
+            val source = spec.resolveSourcePath(requested.source)
+                ?: return MapperFunctionBuildResult.Error(
+                    "Mapper function '${spec.name}' mapping for '${target.name}' references unknown source '${requested.source}'.",
+                )
+            if (source.type != target.type) {
+                return MapperFunctionBuildResult.Error(
+                    "Mapper function '${spec.name}' mapping for '${target.name}' must be ${target.type.displayName}, but '${requested.source}' is ${source.type.displayName}.",
+                )
+            }
+            PropertyAssignment(target.name, source.expression)
         }
 
         return MapperFunctionBuildResult.Success(
@@ -91,6 +72,27 @@ class MapperFunctionModelBuilder {
                 assignments = assignments,
             ),
         )
+    }
+
+    private fun MapperFunctionSpec.autoAssignment(target: MapperTargetParameter): AutoAssignment {
+        val candidates = parameters.mapNotNull { parameter ->
+            when {
+                parameter.name == target.name && parameter.type == target.type -> parameter.name
+                else -> parameter.properties
+                    .firstOrNull { property -> property.name == target.name && property.type == target.type }
+                    ?.let { "${parameter.name}.${it.name}" }
+            }
+        }
+        return when {
+            candidates.size == 1 -> AutoAssignment.Success(PropertyAssignment(target.name, candidates.single()))
+            candidates.size > 1 -> AutoAssignment.Error(
+                "Mapper function '$name' target '${target.name}' is ambiguous across multiple source parameters. Add an explicit @Mapping.",
+            )
+            target.hasDefault -> AutoAssignment.Default
+            else -> AutoAssignment.Error(
+                "Mapper function '$name' cannot map target constructor property '${target.name}'. Add a matching source property, @Mapping source, @Mapping expression, or default value.",
+            )
+        }
     }
 
     private fun MapperFunctionSpec.resolveSourcePath(source: String): ResolvedSource? {
@@ -112,17 +114,15 @@ class MapperFunctionModelBuilder {
     }
 
     private fun MapperSourceParameter.resolve(segments: List<String>, expressionPrefix: String): ResolvedSource? {
-        if (segments.isEmpty()) return null
         var properties = properties
-        var current: MapperProperty? = null
+        lateinit var current: MapperProperty
         segments.forEach { segment ->
             current = properties.firstOrNull { it.name == segment } ?: return null
             properties = current.children
         }
-        val property = current ?: return null
         return ResolvedSource(
             expression = "$expressionPrefix.${segments.joinToString(".")}",
-            type = property.type,
+            type = current.type,
         )
     }
 
@@ -130,4 +130,10 @@ class MapperFunctionModelBuilder {
         val expression: String,
         val type: com.midstane.lighthouse.repository.processor.crud.KotlinType,
     )
+
+    private sealed interface AutoAssignment {
+        data object Default : AutoAssignment
+        data class Error(val message: String) : AutoAssignment
+        data class Success(val assignment: PropertyAssignment) : AutoAssignment
+    }
 }

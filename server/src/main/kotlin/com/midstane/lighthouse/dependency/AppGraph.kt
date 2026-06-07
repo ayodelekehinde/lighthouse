@@ -7,6 +7,7 @@ import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
 
 @DependencyGraph(LightHouseScope::class)
 interface AppGraph : RouteGraph {
+
     @Provides
     fun provideR2dbcDatabase(config: ApplicationConfig): R2dbcDatabase {
         return R2dbcDatabase.connect(
@@ -19,6 +20,6 @@ interface AppGraph : RouteGraph {
 
     @DependencyGraph.Factory
     fun interface Factory {
-        fun create(@Provides config: ApplicationConfig): AppGraph
+        fun create(@Provides applicationConfig: ApplicationConfig): AppGraph
     }
 }

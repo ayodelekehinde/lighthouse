@@ -8,11 +8,9 @@ import com.midstane.lighthouse.repository.UserRepository
 import dev.zacsweers.metro.ContributesIntoSet
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
-import io.ktor.http.*
-import io.ktor.server.application.*
-import io.ktor.server.request.receive
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.server.config.ApplicationConfig
+import io.ktor.server.request.requirePathParameter
+import io.ktor.server.request.requireQueryParameter
 
 @ContributesIntoSet(LightHouseScope::class, binding<Controller>())
 @Inject
@@ -20,37 +18,35 @@ class HelloController(
     private val userRepository: UserRepository,
     private val occupationRepository: OccupationRepository,
     private val userMapper: UserMapper,
+    private val applicationConfig: ApplicationConfig,
 ) : Controller {
 
-    override fun registerRoutes(routing: Routing) {
-        routing.get("/") {
-            handleGetRoot(call)
+    override fun registerRoutes(routes: LighthouseRouting) {
+        routes.get("/"){
+            rootMessage()
         }
-        routing.post("/add") {
-            handleAddUser(call)
+        routes.post<UserDto, UserDto>("/add") { user ->
+            addUser(user)
         }
-        routing.get("/user") {
-            handleGetUser(call)
+        routes.get<List<UserDto>>("/user") {
+            getUsers()
         }
     }
 
-    private suspend fun handleGetRoot(call: ApplicationCall) {
-        call.respondText("Hello World!")
+    private fun rootMessage(): String {
+        return "Hello World! ${applicationConfig.property("ktor.deployment.port").getString()}"
     }
 
-    private suspend fun handleAddUser(call: ApplicationCall) {
-        val user = call.receive<UserDto>()
+    private suspend fun addUser(user: UserDto): UserDto {
         val savedUser = userRepository.save(userMapper.toUser(user))
         val savedOccupation = occupationRepository.save(userMapper.toOccupation(user, savedUser.id))
-        call.respond(HttpStatusCode.OK, userMapper.toDto(savedUser, savedOccupation))
+        return userMapper.toDto(savedUser, savedOccupation)
     }
 
-    private suspend fun handleGetUser(call: ApplicationCall) {
-        call.ok(
-            userRepository.findAll().map {
-                val occupation = occupationRepository.findByUserId(it.id) ?: throw Exception("Occupation not found")
-                userMapper.toDto(it, occupation)
-            }
-        )
+    private suspend fun getUsers(): List<UserDto> {
+        return userRepository.findAll().map {
+            val occupation = occupationRepository.findByUserId(it.id) ?: throw Exception("Occupation not found")
+            userMapper.toDto(it, occupation)
+        }
     }
 }

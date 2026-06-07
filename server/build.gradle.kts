@@ -15,6 +15,9 @@ application {
 
 kotlin {
     jvmToolchain(21)
+    compilerOptions {
+        optIn.add("kotlin.uuid.ExperimentalUuidApi")
+    }
 }
 dependencies {
     implementation(project(":core"))

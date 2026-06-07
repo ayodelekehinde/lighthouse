@@ -1,5 +1,6 @@
 package com.midstane
 
+import com.midstane.lighthouse.getOpenTelemetry
 import io.ktor.client.HttpClient
 import io.ktor.client.*
 import io.ktor.http.*

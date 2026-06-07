@@ -1,4 +1,4 @@
-package com.midstane
+package com.midstane.lighthouse
 
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdk

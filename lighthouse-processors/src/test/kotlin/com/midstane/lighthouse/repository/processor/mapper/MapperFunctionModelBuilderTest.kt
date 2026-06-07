@@ -114,6 +114,40 @@ class MapperFunctionModelBuilderTest {
     }
 
     @Test
+    fun `maps direct scalar source parameters by explicit source`() {
+        val result = builder.build(
+            spec(
+                parameters = listOf(
+                    MapperSourceParameter("dto", dtoType, emptyList()),
+                    MapperSourceParameter("userId", longType, emptyList()),
+                ),
+                targetParameters = listOf(MapperTargetParameter("id", longType)),
+                mappings = listOf(RequestedMapping(target = "id", source = "userId")),
+            ),
+        )
+
+        val success = assertIs<MapperFunctionBuildResult.Success>(result)
+        assertEquals(listOf(PropertyAssignment("id", "userId")), success.function.assignments)
+    }
+
+    @Test
+    fun `maps unqualified source property when it resolves to one source parameter`() {
+        val result = builder.build(
+            spec(
+                parameters = listOf(
+                    MapperSourceParameter("dto", dtoType, listOf(MapperProperty("email", stringType))),
+                    MapperSourceParameter("other", userType, emptyList()),
+                ),
+                targetParameters = listOf(MapperTargetParameter("email", stringType)),
+                mappings = listOf(RequestedMapping(target = "email", source = "email")),
+            ),
+        )
+
+        val success = assertIs<MapperFunctionBuildResult.Success>(result)
+        assertEquals(listOf(PropertyAssignment("email", "dto.email")), success.function.assignments)
+    }
+
+    @Test
     fun `allows target default values to be omitted`() {
         val result = builder.build(
             spec(
@@ -124,6 +158,43 @@ class MapperFunctionModelBuilderTest {
 
         val success = assertIs<MapperFunctionBuildResult.Success>(result)
         assertEquals(emptyList(), success.function.assignments)
+    }
+
+    @Test
+    fun `ignores same-name scalar parameters and properties with mismatched types when target has default`() {
+        val result = builder.build(
+            spec(
+                parameters = listOf(
+                    MapperSourceParameter("name", longType, emptyList()),
+                    MapperSourceParameter("user", userType, listOf(MapperProperty("name", longType))),
+                ),
+                targetParameters = listOf(MapperTargetParameter("name", stringType, hasDefault = true)),
+            ),
+        )
+
+        val success = assertIs<MapperFunctionBuildResult.Success>(result)
+        assertEquals(emptyList(), success.function.assignments)
+    }
+
+    @Test
+    fun `uses default empty mappings on mapper function specs`() {
+        val result = builder.build(
+            MapperFunctionSpec(
+                name = "toDto",
+                parameters = listOf(
+                    MapperSourceParameter(
+                        name = "user",
+                        type = userType,
+                        properties = listOf(MapperProperty("name", stringType)),
+                    ),
+                ),
+                returnType = dtoType,
+                targetParameters = listOf(MapperTargetParameter("name", stringType)),
+            ),
+        )
+
+        val success = assertIs<MapperFunctionBuildResult.Success>(result)
+        assertEquals(listOf(PropertyAssignment("name", "user.name")), success.function.assignments)
     }
 
     @Test
@@ -174,6 +245,93 @@ class MapperFunctionModelBuilderTest {
             builder.build(
                 spec(
                     mappings = listOf(RequestedMapping(target = "name", source = "user.name", expression = "user.name")),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `rejects blank mapping targets`() {
+        assertError(
+            "Mapper function 'toDto' has a @Mapping with a blank target.",
+            builder.build(
+                spec(
+                    mappings = listOf(RequestedMapping(target = "", source = "user.name")),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `rejects mappings without source or expression`() {
+        assertError(
+            "Mapper function 'toDto' mapping for 'name' must set source or expression.",
+            builder.build(
+                spec(
+                    mappings = listOf(RequestedMapping(target = "name")),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `rejects duplicate mappings for a target`() {
+        assertError(
+            "Mapper function 'toDto' declares multiple mappings for target 'name'.",
+            builder.build(
+                spec(
+                    mappings = listOf(
+                        RequestedMapping(target = "name", source = "user.name"),
+                        RequestedMapping(target = "name", expression = "\"Ada\""),
+                    ),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `rejects mappings for unknown target properties`() {
+        assertError(
+            "Mapper function 'toDto' maps unknown target constructor property 'missing'.",
+            builder.build(
+                spec(
+                    mappings = listOf(RequestedMapping(target = "missing", source = "user.name")),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `rejects direct source parameter mapping type mismatch`() {
+        assertError(
+            "Mapper function 'toDto' mapping for 'name' must be kotlin.String, but 'user.' is com.midstane.lighthouse.entity.User.",
+            builder.build(
+                spec(
+                    mappings = listOf(RequestedMapping(target = "name", source = "user.")),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `rejects mappings for unknown source paths`() {
+        assertError(
+            "Mapper function 'toDto' mapping for 'name' references unknown source 'user.missing'.",
+            builder.build(
+                spec(
+                    mappings = listOf(RequestedMapping(target = "name", source = "user.missing")),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `rejects source paths without real segments`() {
+        assertError(
+            "Mapper function 'toDto' mapping for 'name' references unknown source '.'.",
+            builder.build(
+                spec(
+                    mappings = listOf(RequestedMapping(target = "name", source = ".")),
                 ),
             ),
         )

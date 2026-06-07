@@ -19,34 +19,34 @@ class ExposedCrudRepositoryRendererTest {
         assertContains(source, "class GeneratedUserRepository(")
         assertContains(source, ") : UserRepository {")
         assertContains(source, "override suspend fun save(entity: UserDto): UserDto = transaction {")
-        assertContains(source, "val updatedRows = UserDtoTable.updateReturning( where = { UserDtoTable.username eq entity.username })")
-        assertContains(source, "override suspend fun findById(id: kotlin.String): UserDto? = transaction {")
+        assertContains(source, "val updatedRows = UserDtoTable.updateReturning( where = { UserDtoTable.id eq entity.id })")
+        assertContains(source, "override suspend fun findById(id: kotlin.Long): UserDto? = transaction {")
         assertContains(source, "override suspend fun findAll(): List<UserDto> = transaction {")
-        assertContains(source, "override suspend fun deleteById(id: kotlin.String)")
-        assertContains(source, "UserDtoTable.deleteWhere { UserDtoTable.username eq id }")
-        assertContains(source, "override suspend fun findByUsername(username: kotlin.String): UserDto? = transaction {")
+        assertContains(source, "override suspend fun deleteById(id: kotlin.Long)")
+        assertContains(source, "UserDtoTable.deleteWhere { UserDtoTable.id eq id }")
+        assertContains(source, "override suspend fun findByName(name: kotlin.String): UserDto? = transaction {")
         assertContains(source, "override suspend fun findByAge(age: kotlin.Int): UserDto? = transaction {")
         assertContains(source, ".where { UserDtoTable.age eq age }")
         assertContains(source, "override suspend fun findAllByAge(age: kotlin.Int): List<UserDto> = transaction {")
         assertContains(source, "            .map(::toEntity)")
-        assertContains(source, "override suspend fun existsByUsername(username: kotlin.String): kotlin.Boolean = transaction {")
+        assertContains(source, "override suspend fun existsByName(name: kotlin.String): kotlin.Boolean = transaction {")
         assertContains(source, "            .isNotEmpty()")
         assertContains(source, "override suspend fun countByAge(age: kotlin.Int): kotlin.Long = transaction {")
         assertContains(source, "            .toLong()")
         assertContains(source, "private fun toEntity(row: ResultRow): UserDto")
         assertContains(source, "private object UserDtoTable : LongIdTable(\"users\")")
-        assertContains(source, "val username = varchar(\"username\", 255)")
+        assertContains(source, "val name = varchar(\"name\", 255)")
         assertContains(source, "val age = integer(\"age\")")
         assertContains(source, "val accountId = long(\"accountId\")")
         assertContains(source, "val active = bool(\"active\")")
         assertContains(source, "val createdAt = timestamp(\"created_at\").defaultExpression(CurrentTimestamp)")
         assertContains(source, "val updatedAt = timestamp(\"updated_at\").defaultExpression(CurrentTimestamp)")
-        assertContains(source, "override val primaryKey = PrimaryKey(username)")
+        assertFalse(source.contains("override val primaryKey"))
     }
 
     @Test
     fun `escapes table names`() {
-        val id = property("username", KotlinType("kotlin.String"), ExposedColumn.String)
+        val id = property("id", KotlinType("kotlin.Long"), ExposedColumn.Long, generateColumn = false)
         val source = renderer.render(
             model(
                 tableName = "user\\records\"archive",
@@ -57,22 +57,28 @@ class ExposedCrudRepositoryRendererTest {
         )
 
         assertContains(source, "LongIdTable(\"user\\\\records\\\"archive\")")
-        assertContains(source, "val username = varchar(\"username\", 255)")
+        assertFalse(source.contains("val id = long(\"id\")"))
     }
 
     @Test
     fun `renders unique text uuid autogenerate default and enum columns`() {
         val id = property(
             name = "id",
-            type = KotlinType("java.util.UUID"),
-            column = ExposedColumn.Uuid,
-            options = ColumnOptions(autogenerate = true),
+            type = KotlinType("kotlin.Long"),
+            column = ExposedColumn.Long,
+            generateColumn = false,
         )
         val source = renderer.render(
             model(
                 idProperty = id,
                 properties = listOf(
                     id,
+                    property(
+                        name = "uuid",
+                        type = KotlinType("kotlin.uuid.Uuid"),
+                        column = ExposedColumn.Uuid,
+                        options = ColumnOptions(autogenerate = true),
+                    ),
                     property(
                         name = "email",
                         type = KotlinType("kotlin.String"),
@@ -95,7 +101,7 @@ class ExposedCrudRepositoryRendererTest {
             ),
         )
 
-        assertContains(source, "val id = uuid(\"id\").autoGenerate()")
+        assertContains(source, "val uuid = uuid(\"uuid\").autoGenerate()")
         assertContains(source, "val data = UserDtoTable.insertReturning {")
         assertContains(source, "return@transaction data.singleOrNull()?.let { toEntity(it) } ?: entity")
         assertContains(source, "val email = varchar(\"email\", 255).uniqueIndex()")
@@ -105,60 +111,62 @@ class ExposedCrudRepositoryRendererTest {
             "val status = enumerationByName<com.midstane.lighthouse.entity.UserStatus>(\"status\", 255).default(UserStatus.Active)",
         )
         assertContains(source, "import com.midstane.lighthouse.entity.UserStatus")
-        assertContains(source, "override val primaryKey = PrimaryKey(id)")
         assertContains(source, "val updatedRows = UserDtoTable.updateReturning( where = { UserDtoTable.id eq entity.id }) {")
         assertContains(source, "it[UserDtoTable.email] = entity.email")
         assertContains(source, "it[UserDtoTable.bio] = entity.bio")
         assertContains(source, "it[UserDtoTable.status] = entity.status")
         assertFalse(source.contains("it[UserDtoTable.id] = entity.id"))
+        assertFalse(source.contains("it[UserDtoTable.uuid] = entity.uuid"))
     }
 
     @Test
-    fun `renders integer autogenerate columns`() {
-        val id = property(
-            name = "id",
-            type = KotlinType("kotlin.Int"),
-            column = ExposedColumn.Int,
-            options = ColumnOptions(autogenerate = true),
-        )
+    fun `renders non id autogenerate integer column`() {
+        val id = property("id", KotlinType("kotlin.Long"), ExposedColumn.Long, generateColumn = false)
         val source = renderer.render(
             model(
                 idProperty = id,
-                properties = listOf(id),
-                finders = emptyList(),
-            ),
-        )
-
-        assertContains(source, "val id = integer(\"id\").autoIncrement()")
-    }
-
-    @Test
-    fun `renders custom autogenerated primary key`() {
-        val customId = property(
-            name = "customId",
-            type = KotlinType("kotlin.Long"),
-            column = ExposedColumn.Long,
-            options = ColumnOptions(autogenerate = true),
-        )
-        val source = renderer.render(
-            model(
-                idProperty = customId,
                 properties = listOf(
-                    customId,
-                    property("name", KotlinType("kotlin.String"), ExposedColumn.String),
+                    id,
+                    property(
+                        name = "sequence",
+                        type = KotlinType("kotlin.Int"),
+                        column = ExposedColumn.Int,
+                        options = ColumnOptions(autogenerate = true),
+                    ),
                 ),
                 finders = emptyList(),
             ),
         )
 
-        assertContains(source, "val customId = long(\"customId\").autoIncrement()")
-        assertContains(source, "val data = UserDtoTable.insertReturning {")
-        assertContains(source, "return@transaction data.singleOrNull()?.let { toEntity(it) } ?: entity")
+        assertContains(source, "val sequence = integer(\"sequence\").autoIncrement()")
+        assertFalse(source.contains(".default(1)"))
     }
 
+    @Test
+    fun `does not render default values for autogenerate columns`() {
+        val id = property("id", KotlinType("kotlin.Long"), ExposedColumn.Long, generateColumn = false)
+        val source = renderer.render(
+            model(
+                idProperty = id,
+                properties = listOf(
+                    id,
+                    property(
+                        name = "code",
+                        type = KotlinType("kotlin.Int"),
+                        column = ExposedColumn.Int,
+                        options = ColumnOptions(autogenerate = true, defaultValue = "1"),
+                    ),
+                ),
+                finders = emptyList(),
+            ),
+        )
+
+        assertContains(source, "val code = integer(\"code\").autoIncrement()")
+        assertFalse(source.contains(".default(1)"))
+    }
 
     @Test
-    fun `does not generate inherited LongIdTable long id column or primary key override`() {
+    fun `does not generate LongIdTable long id column or primary key override`() {
         val id = property(
             name = "id",
             type = KotlinType("kotlin.Long"),
@@ -173,7 +181,6 @@ class ExposedCrudRepositoryRendererTest {
                     property("name", KotlinType("kotlin.String"), ExposedColumn.String),
                 ),
                 finders = emptyList(),
-                primaryKeyIsInherited = true,
             ),
         )
 
@@ -185,53 +192,7 @@ class ExposedCrudRepositoryRendererTest {
         assertContains(source, "val name = varchar(\"name\", 255)")
         assertFalse(source.contains("val id = long(\"id\")"))
         assertFalse(source.contains("it[UserDtoTable.id] = entity.id"))
-        assertFalse(source.contains("override val primaryKey = PrimaryKey(id)"))
-    }
-
-    @Test
-    fun `renders primary key override only when primary key differs from inherited id`() {
-        val slug = property("slug", KotlinType("kotlin.String"), ExposedColumn.String)
-        val source = renderer.render(
-            model(
-                idProperty = slug,
-                properties = listOf(
-                    property(
-                        name = "id",
-                        type = KotlinType("kotlin.Long"),
-                        column = ExposedColumn.Long,
-                        generateColumn = false,
-                    ),
-                    slug,
-                ),
-                finders = emptyList(),
-            ),
-        )
-
-        assertContains(source, "val slug = varchar(\"slug\", 255)")
-        assertContains(source, "override val primaryKey = PrimaryKey(slug)")
-        assertFalse(source.contains("val id = long(\"id\")"))
-    }
-
-    @Test
-    fun `non-generated non-inherited columns use normal row access`() {
-        val slug = property("slug", KotlinType("kotlin.String"), ExposedColumn.String)
-        val source = renderer.render(
-            model(
-                idProperty = slug,
-                properties = listOf(
-                    property(
-                        name = "legacyId",
-                        type = KotlinType("kotlin.Long"),
-                        column = ExposedColumn.Long,
-                        generateColumn = false,
-                    ),
-                    slug,
-                ),
-                finders = emptyList(),
-            ),
-        )
-
-        assertContains(source, "legacyId = row[UserDtoTable.legacyId],")
+        assertFalse(source.contains("override val primaryKey"))
     }
 
     @Test
@@ -247,7 +208,6 @@ class ExposedCrudRepositoryRendererTest {
                     property("updatedAt", KotlinType("kotlin.String"), ExposedColumn.Timestamp),
                 ),
                 finders = emptyList(),
-                primaryKeyIsInherited = true,
             ),
         )
 
@@ -272,7 +232,6 @@ class ExposedCrudRepositoryRendererTest {
                     property("lastLogin", KotlinType("kotlin.time.Instant"), ExposedColumn.Timestamp),
                 ),
                 finders = emptyList(),
-                primaryKeyIsInherited = true,
             ),
         )
 
@@ -294,7 +253,6 @@ class ExposedCrudRepositoryRendererTest {
                     property("endDate", KotlinType("kotlinx.datetime.LocalDate", nullable = true), ExposedColumn.Date),
                 ),
                 finders = emptyList(),
-                primaryKeyIsInherited = true,
             ),
         )
 
@@ -328,41 +286,23 @@ class ExposedCrudRepositoryRendererTest {
         assertEquals(ColumnOptions(), property.options)
     }
 
-    @Test
-    fun `repository models default to explicit primary key rendering`() {
-        val id = property("username", KotlinType("kotlin.String"), ExposedColumn.String)
-        val model = CrudRepositoryModel(
-            packageName = "com.midstane.lighthouse.repository",
-            repositoryName = "UserRepository",
-            generatedName = "GeneratedUserRepository",
-            entity = KotlinType("com.midstane.lighthouse.dto.UserDto"),
-            bindingScope = KotlinType("com.midstane.lighthouse.dependency.LightHouseScope"),
-            tableName = "users",
-            idProperty = id,
-            properties = listOf(id),
-            finders = emptyList(),
-        )
-
-        assertFalse(model.primaryKeyIsInherited)
-    }
-
     private fun model(
         tableName: String = "users",
-        idProperty: EntityProperty = property("username", KotlinType("kotlin.String"), ExposedColumn.String),
+        idProperty: EntityProperty = property("id", KotlinType("kotlin.Long"), ExposedColumn.Long, generateColumn = false),
         properties: List<EntityProperty> = listOf(
             idProperty,
+            property("name", KotlinType("kotlin.String"), ExposedColumn.String),
             property("age", KotlinType("kotlin.Int"), ExposedColumn.Int),
             property("accountId", KotlinType("kotlin.Long"), ExposedColumn.Long),
             property("active", KotlinType("kotlin.Boolean"), ExposedColumn.Boolean),
         ),
         finders: List<Finder> = listOf(
-            Finder("findByUsername", "username", idProperty),
+            Finder("findByName", "name", properties.first { it.name == "name" }),
             Finder("findByAge", "age", properties.first { it.name == "age" }),
             Finder("findAllByAge", "age", properties.first { it.name == "age" }, DerivedQueryKind.FindAll),
-            Finder("existsByUsername", "username", idProperty, DerivedQueryKind.Exists),
+            Finder("existsByName", "name", properties.first { it.name == "name" }, DerivedQueryKind.Exists),
             Finder("countByAge", "age", properties.first { it.name == "age" }, DerivedQueryKind.Count),
         ),
-        primaryKeyIsInherited: Boolean = false,
     ): CrudRepositoryModel {
         return CrudRepositoryModel(
             packageName = "com.midstane.lighthouse.repository",
@@ -374,7 +314,6 @@ class ExposedCrudRepositoryRendererTest {
             idProperty = idProperty,
             properties = properties,
             finders = finders,
-            primaryKeyIsInherited = primaryKeyIsInherited,
         )
     }
 

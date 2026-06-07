@@ -1,3 +1,5 @@
+import org.gradle.api.publish.PublishingExtension
+
 plugins {
     alias(libs.plugins.kotlin.multiplatform) apply false
     alias(libs.plugins.kotlin.jvm) apply false
@@ -9,5 +11,20 @@ plugins {
 
 subprojects {
     group = "com.midstane"
-    version = "1.0.0-SNAPSHOT"
+    version = "0.0.1"
+
+    plugins.withId("maven-publish") {
+        extensions.configure<PublishingExtension>("publishing") {
+            repositories {
+                maven {
+                    name = "GitHubPackages"
+                    url = uri("https://maven.pkg.github.com/${System.getenv("GITHUB_REPOSITORY") ?: "user/lighthouse"}")
+                    credentials {
+                        username = System.getenv("GITHUB_ACTOR")
+                        password = System.getenv("GITHUB_TOKEN")
+                    }
+                }
+            }
+        }
+    }
 }
