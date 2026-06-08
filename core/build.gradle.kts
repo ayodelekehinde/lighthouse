@@ -16,6 +16,7 @@ java {
 
 dependencies {
     api(ktorLibs.server.core)
+    api(ktorLibs.server.auth)
     api(ktorLibs.serialization.kotlinx.json)
     implementation(ktorLibs.server.contentNegotiation)
     implementation(ktorLibs.server.statusPages)

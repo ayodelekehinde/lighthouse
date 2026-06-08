@@ -1,23 +1,21 @@
 package com.midstane.lighthouse
 
-import com.midstane.lighthouse.controller.Controller
-import com.midstane.lighthouse.controller.LighthouseRouting
-import com.midstane.lighthouse.controller.Validatable
-import com.midstane.lighthouse.controller.ValidationError
+import com.midstane.lighthouse.controller.*
 import com.midstane.lighthouse.dependency.RouteGraph
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.contentType
-import io.ktor.server.config.ApplicationConfig
-import io.ktor.server.config.MapApplicationConfig
-import io.ktor.server.testing.testApplication
+import io.ktor.client.statement.*
+import io.ktor.http.*
+import io.ktor.server.application.*
+import io.ktor.server.auth.*
+import io.ktor.server.config.*
+import io.ktor.server.testing.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import java.util.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -73,6 +71,46 @@ class LighthouseTest {
             response.bodyAsText(),
         )
     }
+
+    @Test
+    fun `lighthouse wraps controller routes with configured authentication`() = testApplication {
+        application {
+            install(Authentication) {
+                basic("basic") {
+                    validate { credentials ->
+                        if (credentials.name == "admin" && credentials.password == "secret") {
+                            UserIdPrincipal(credentials.name)
+                        } else {
+                            null
+                        }
+                    }
+                }
+            }
+            lighthouse(
+                graph = testGraph(
+                    object : Controller {
+                        override val baseRoute: String = "/admin"
+                        override val auth: AuthRequirement = AuthRequirement.Required("basic")
+
+                        override fun registerRoutes(routes: LighthouseRouting) {
+                            routes.get<HealthResponse>("/") {
+                                HealthResponse(status = "private")
+                            }
+                        }
+                    },
+                ),
+            )
+        }
+
+        val unauthorizedResponse = client.get("/admin")
+        val authorizedResponse = client.get("/admin") {
+            header(HttpHeaders.Authorization, basicAuth("admin", "secret"))
+        }
+
+        assertEquals(HttpStatusCode.Unauthorized, unauthorizedResponse.status)
+        assertEquals(HttpStatusCode.OK, authorizedResponse.status)
+        assertJsonEquals("""{"status":"private"}""", authorizedResponse.bodyAsText())
+    }
 }
 
 private fun testGraph(vararg controllers: Controller): RouteGraph {
@@ -84,6 +122,11 @@ private fun testGraph(vararg controllers: Controller): RouteGraph {
 
 private fun assertJsonEquals(expected: String, actual: String) {
     assertEquals(Json.decodeFromString<JsonElement>(expected), Json.decodeFromString<JsonElement>(actual))
+}
+
+private fun basicAuth(username: String, password: String): String {
+    val token = Base64.getEncoder().encodeToString("$username:$password".toByteArray())
+    return "Basic $token"
 }
 
 @Serializable

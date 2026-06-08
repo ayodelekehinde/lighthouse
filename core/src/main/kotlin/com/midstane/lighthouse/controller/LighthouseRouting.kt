@@ -1,14 +1,12 @@
 package com.midstane.lighthouse.controller
 
-import io.ktor.server.application.*
-import io.ktor.server.response.respondText
 import io.ktor.server.routing.*
 
 class LighthouseRouting(
-    @PublishedApi internal val routing: Routing,
+    @PublishedApi internal val routing: Route,
     @PublishedApi internal val baseRoute: String = "",
 ) {
-    fun raw(block: Routing.() -> Unit) {
+    fun raw(block: Route.() -> Unit) {
         routing.block()
     }
 
@@ -18,15 +16,6 @@ class LighthouseRouting(
     ) {
         routing.get(resolve(path)) {
             call.respondResult(call.handler())
-        }
-    }
-
-    fun getText(
-        path: String,
-        handler: suspend RoutingCall.() -> String,
-    ) {
-        routing.get(resolve(path)) {
-            call.respondText(call.handler())
         }
     }
 
@@ -42,7 +31,7 @@ class LighthouseRouting(
 
     inline fun <reified Request : Any, reified Response : Any> put(
         path: String,
-        crossinline handler: suspend ApplicationCall.(Request) -> Response,
+        crossinline handler: suspend RoutingCall.(Request) -> Response,
     ) {
         routing.put(resolve(path)) {
             val request = call.body<Request>()
