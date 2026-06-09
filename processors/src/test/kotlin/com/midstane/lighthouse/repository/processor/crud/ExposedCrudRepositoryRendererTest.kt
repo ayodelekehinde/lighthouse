@@ -25,6 +25,7 @@ class ExposedCrudRepositoryRendererTest {
         assertContains(source, "UserDtoTable.deleteWhere { UserDtoTable.id eq id }")
         assertContains(source, "override suspend fun findByName(name: kotlin.String): UserDto? = transaction {")
         assertContains(source, "override suspend fun findByAge(age: kotlin.Int): UserDto? = transaction {")
+        assertContains(source, "override suspend fun findByEmail(email: kotlin.String?): UserDto? = transaction {")
         assertContains(source, ".where { UserDtoTable.age eq age }")
         assertContains(source, "override suspend fun findAllByAge(age: kotlin.Int): List<UserDto> = transaction {")
         assertContains(source, "            .map(::toEntity)")
@@ -294,16 +295,41 @@ class ExposedCrudRepositoryRendererTest {
         properties: List<EntityProperty> = listOf(
             idProperty,
             property("name", KotlinType("kotlin.String"), ExposedColumn.String),
+            property("email", KotlinType("kotlin.String", nullable = true), ExposedColumn.String),
             property("age", KotlinType("kotlin.Int"), ExposedColumn.Int),
             property("accountId", KotlinType("kotlin.Long"), ExposedColumn.Long),
             property("active", KotlinType("kotlin.Boolean"), ExposedColumn.Boolean),
         ),
         finders: List<Finder> = listOf(
-            Finder("findByName", "name", properties.first { it.name == "name" }),
-            Finder("findByAge", "age", properties.first { it.name == "age" }),
-            Finder("findAllByAge", "age", properties.first { it.name == "age" }, DerivedQueryKind.FindAll),
-            Finder("existsByName", "name", properties.first { it.name == "name" }, DerivedQueryKind.Exists),
-            Finder("countByAge", "age", properties.first { it.name == "age" }, DerivedQueryKind.Count),
+            Finder("findByName", "name", KotlinType("kotlin.String"), properties.first { it.name == "name" }),
+            Finder("findByAge", "age", KotlinType("kotlin.Int"), properties.first { it.name == "age" }),
+            Finder(
+                "findByEmail",
+                "email",
+                KotlinType("kotlin.String", nullable = true),
+                properties.first { it.name == "email" },
+            ),
+            Finder(
+                "findAllByAge",
+                "age",
+                KotlinType("kotlin.Int"),
+                properties.first { it.name == "age" },
+                DerivedQueryKind.FindAll,
+            ),
+            Finder(
+                "existsByName",
+                "name",
+                KotlinType("kotlin.String"),
+                properties.first { it.name == "name" },
+                DerivedQueryKind.Exists,
+            ),
+            Finder(
+                "countByAge",
+                "age",
+                KotlinType("kotlin.Int"),
+                properties.first { it.name == "age" },
+                DerivedQueryKind.Count,
+            ),
         ),
     ): CrudRepositoryModel {
         return CrudRepositoryModel(

@@ -26,6 +26,7 @@ data class EntityProperty(
 data class Finder(
     val functionName: String,
     val parameterName: String,
+    val parameterType: KotlinType,
     val property: EntityProperty,
     val kind: DerivedQueryKind = DerivedQueryKind.FindOne,
 )

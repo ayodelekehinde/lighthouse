@@ -1,15 +1,7 @@
 package com.midstane.lighthouse.repository.processor.mapper
 
 import com.google.devtools.ksp.processing.KSPLogger
-import com.google.devtools.ksp.symbol.ClassKind
-import com.google.devtools.ksp.symbol.KSAnnotated
-import com.google.devtools.ksp.symbol.KSAnnotation
-import com.google.devtools.ksp.symbol.KSClassDeclaration
-import com.google.devtools.ksp.symbol.KSDeclaration
-import com.google.devtools.ksp.symbol.KSFunctionDeclaration
-import com.google.devtools.ksp.symbol.KSType
-import com.google.devtools.ksp.symbol.Nullability
-import com.google.devtools.ksp.symbol.Modifier
+import com.google.devtools.ksp.symbol.*
 import com.midstane.lighthouse.repository.processor.crud.KotlinType
 
 class MapperModelBuilder(
@@ -25,13 +17,17 @@ class MapperModelBuilder(
         val annotation = mapper.requireAnnotation(MAPPER) ?: return null
         val bindingScopeType = annotation.requireType("bindingScope", mapper) ?: return null
         val configuredName = annotation.stringOrDefault("generatedName")
-        val functions = mapper.declarations
+        val declaredFunctions = mapper.declarations
             .filterIsInstance<KSFunctionDeclaration>()
+            .toList()
+        val functions = declaredFunctions
             .mapNotNull { function -> function.toMapperFunction() }
             .toList()
 
         if (functions.isEmpty()) {
-            logger.error("@Mapper interfaces must declare at least one mapping function.", mapper)
+            if (declaredFunctions.isEmpty()) {
+                logger.error("@Mapper interfaces must declare at least one mapping function.", mapper)
+            }
             return null
         }
 
@@ -111,7 +107,7 @@ class MapperModelBuilder(
 
     private fun KSClassDeclaration.toMapperProperties(visited: Set<String> = emptySet()): List<MapperProperty> {
         val qualifiedName = qualifiedName?.asString() ?: return emptyList()
-        if (!qualifiedName.startsWith("com.midstane.")) return emptyList()
+        if (!canInspectMapperProperties()) return emptyList()
         if (qualifiedName in visited) return emptyList()
         val nextVisited = visited + qualifiedName
 
@@ -127,9 +123,18 @@ class MapperModelBuilder(
 
     private fun KSDeclaration.mapperChildren(visited: Set<String>): List<MapperProperty> {
         val declaration = this as? KSClassDeclaration ?: return emptyList()
-        val qualifiedName = declaration.qualifiedName?.asString() ?: return emptyList()
-        if (!qualifiedName.startsWith("com.midstane.")) return emptyList()
+        declaration.qualifiedName?.asString() ?: return emptyList()
         return declaration.toMapperProperties(visited)
+    }
+
+    private fun KSClassDeclaration.canInspectMapperProperties(): Boolean {
+        if (classKind != ClassKind.CLASS) return false
+        val qualifiedName = qualifiedName?.asString() ?: return false
+        return qualifiedName.platformPackagePrefix() == null
+    }
+
+    private fun String.platformPackagePrefix(): String? {
+        return PLATFORM_PACKAGE_PREFIXES.firstOrNull { prefix -> startsWith(prefix) }
     }
 
     private fun KSFunctionDeclaration.mappingAnnotations(): List<RequestedMapping> {
@@ -207,5 +212,11 @@ class MapperModelBuilder(
         const val MAPPER = "com.midstane.lighthouse.repository.annotations.Mapper"
         const val MAPPING = "com.midstane.lighthouse.repository.annotations.Mapping"
         const val MAPPINGS = "com.midstane.lighthouse.repository.annotations.Mappings"
+        val PLATFORM_PACKAGE_PREFIXES = listOf(
+            "kotlin.",
+            "kotlinx.",
+            "java.",
+            "javax.",
+        )
     }
 }

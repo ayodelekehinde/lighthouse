@@ -122,7 +122,7 @@ class ExposedCrudRepositoryRenderer {
     }
 
     private fun StringBuilder.appendFinder(model: CrudRepositoryModel, finder: Finder) {
-        appendLine("    override suspend fun ${finder.functionName}(${finder.parameterName}: ${finder.property.type.qualifiedName}): ${finder.returnType(model)} = transaction {")
+        appendLine("    override suspend fun ${finder.functionName}(${finder.parameterName}: ${finder.parameterType.displayName}): ${finder.returnType(model)} = transaction {")
         appendLine("        ${model.tableObjectName}.selectAll()")
         appendLine("            .where { ${model.tableObjectName}.${finder.property.name} eq ${finder.parameterName} }")
         when (finder.kind) {
