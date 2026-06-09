@@ -1,23 +1,16 @@
 package com.midstane.lighthouse.controller
 
-import io.ktor.client.request.delete
-import io.ktor.client.request.get
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.contentType
-import io.ktor.http.parameters
-import io.ktor.serialization.kotlinx.json.json
-import io.ktor.server.application.Application
-import io.ktor.server.application.install
-import io.ktor.server.plugins.BadRequestException
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.server.plugins.statuspages.StatusPages
-import io.ktor.server.response.respond
-import io.ktor.server.routing.routing
-import io.ktor.server.testing.testApplication
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
+import io.ktor.serialization.kotlinx.json.*
+import io.ktor.server.application.*
+import io.ktor.server.plugins.*
+import io.ktor.server.plugins.contentnegotiation.*
+import io.ktor.server.plugins.statuspages.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import io.ktor.server.testing.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
@@ -25,6 +18,22 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 
 class LighthouseRoutingTest {
+    @Test
+    fun `get route resolves base route and responds with handler result`() = testApplication {
+        application {
+            configureTestApplication(baseRoute = "api") {
+                get<ThingResponse>("things") {
+                    ThingResponse(name = "Ada")
+                }
+            }
+        }
+
+        val response = client.get("/api/things")
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals("""{"name":"Ada"}""", response.bodyAsText())
+    }
+
     @Test
     fun `post route receives valid body and responds with handler result`() = testApplication {
         application {
@@ -86,6 +95,78 @@ class LighthouseRoutingTest {
         assertEquals(HttpStatusCode.BadRequest, response.status)
         assertEquals("""{"message":"Request body is required","errors":[]}""", response.bodyAsText())
         assertFalse(handlerCalled)
+    }
+
+    @Test
+    fun `put route receives body and responds with handler result`() = testApplication {
+        application {
+            configureTestApplication {
+                put<CreateThingRequest, ThingResponse>("/things/1") { request ->
+                    ThingResponse(name = request.name.uppercase())
+                }
+            }
+        }
+
+        val response = client.put("/things/1") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"name":"ada"}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals("""{"name":"ADA"}""", response.bodyAsText())
+    }
+
+    @Test
+    fun `patch route receives body and responds with handler result`() = testApplication {
+        application {
+            configureTestApplication {
+                patch<CreateThingRequest, ThingResponse>("/things/1") { request ->
+                    ThingResponse(name = request.name.trim())
+                }
+            }
+        }
+
+        val response = client.patch("/things/1") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"name":" Grace "}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals("""{"name":"Grace"}""", response.bodyAsText())
+    }
+
+    @Test
+    fun `delete route can respond with no content`() = testApplication {
+        application {
+            configureTestApplication {
+                delete<Unit>("/things/1") {
+                    Unit
+                }
+            }
+        }
+
+        val response = client.delete("/things/1")
+
+        assertEquals(HttpStatusCode.NoContent, response.status)
+        assertEquals("", response.bodyAsText())
+    }
+
+    @Test
+    fun `raw route registers directly on underlying ktor route`() = testApplication {
+        application {
+            configureTestApplication {
+                raw {
+                    get("/raw") {
+                        call.respond(ThingResponse(name = "raw"))
+                    }
+                }
+            }
+        }
+
+        val response = client.get("/raw")
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals("""{"name":"raw"}""", response.bodyAsText())
     }
 }
 
