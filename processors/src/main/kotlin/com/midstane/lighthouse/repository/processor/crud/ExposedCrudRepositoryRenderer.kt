@@ -1,29 +1,19 @@
 package com.midstane.lighthouse.repository.processor.crud
 
 class ExposedCrudRepositoryRenderer {
-    fun render(model: CrudRepositoryModel): String = buildString {
-        if (model.properties.any { it.column == ExposedColumn.Uuid }){
-            appendLine("@file:OptIn(ExperimentalUuidApi::class)")
-            appendLine()
-        }
+    fun renderRepository(model: CrudRepositoryModel): String = buildString {
         appendLine("package ${model.packageName}")
         appendLine()
         appendLine("import ${model.bindingScope.qualifiedName}")
         appendLine("import ${model.entity.qualifiedName}")
-        model.properties.mapNotNull { property -> property.enumType() }
-            .distinctBy { type -> type.qualifiedName }
-            .forEach { type -> appendLine("import ${type.qualifiedName}") }
+        appendLine("import ${model.tablePackageName}.${model.tableObjectName}")
         appendLine("import dev.zacsweers.metro.ContributesBinding")
         appendLine("import dev.zacsweers.metro.Inject")
         appendLine("import dev.zacsweers.metro.binding")
         appendLine("import kotlinx.coroutines.flow.map")
         appendLine("import kotlinx.coroutines.flow.singleOrNull")
         appendLine("import kotlinx.coroutines.flow.toList")
-        appendLine("import org.jetbrains.exposed.v1.core.dao.id.LongIdTable")
         appendLine("import org.jetbrains.exposed.v1.core.ResultRow")
-        appendLine("import org.jetbrains.exposed.v1.datetime.CurrentTimestamp")
-        appendLine("import org.jetbrains.exposed.v1.datetime.date")
-        appendLine("import org.jetbrains.exposed.v1.datetime.timestamp")
         appendLine("import org.jetbrains.exposed.v1.core.eq")
         appendLine("import org.jetbrains.exposed.v1.core.StdOutSqlLogger")
         appendLine("import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase")
@@ -35,10 +25,6 @@ class ExposedCrudRepositoryRenderer {
         appendLine("import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction")
         appendLine("import org.jetbrains.exposed.v1.r2dbc.updateReturning")
         appendLine("import kotlin.time.Clock")
-        if (model.properties.any { it.column == ExposedColumn.Uuid }){
-            appendLine("import kotlin.uuid.ExperimentalUuidApi")
-            appendLine("import kotlin.uuid.Uuid")
-        }
         appendLine()
         appendLine("@ContributesBinding(${model.bindingScope.simpleName}::class, binding<${model.repositoryName}>())")
         appendLine("@Inject")
@@ -62,8 +48,28 @@ class ExposedCrudRepositoryRenderer {
         appendLine()
         appendMapper(model)
         appendLine()
-        appendTable(model)
         appendLine("}")
+    }
+
+    fun renderTable(model: CrudRepositoryModel): String = buildString {
+        if (model.properties.any { it.column == ExposedColumn.Uuid }) {
+            appendLine("@file:OptIn(ExperimentalUuidApi::class)")
+            appendLine()
+        }
+        appendLine("package ${model.tablePackageName}")
+        appendLine()
+        model.properties.mapNotNull { property -> property.enumType() }
+            .distinctBy { type -> type.qualifiedName }
+            .forEach { type -> appendLine("import ${type.qualifiedName}") }
+        appendLine("import org.jetbrains.exposed.v1.core.dao.id.LongIdTable")
+        appendLine("import org.jetbrains.exposed.v1.datetime.CurrentTimestamp")
+        appendLine("import org.jetbrains.exposed.v1.datetime.date")
+        appendLine("import org.jetbrains.exposed.v1.datetime.timestamp")
+        if (model.properties.any { it.column == ExposedColumn.Uuid }) {
+            appendLine("import kotlin.uuid.ExperimentalUuidApi")
+        }
+        appendLine()
+        appendTable(model)
     }
 
     private fun StringBuilder.appendSave(model: CrudRepositoryModel) {
@@ -175,17 +181,17 @@ class ExposedCrudRepositoryRenderer {
     }
 
     private fun StringBuilder.appendTable(model: CrudRepositoryModel) {
-        appendLine("    private object ${model.tableObjectName} : LongIdTable(${model.tableName.quote()}) {")
+        appendLine("internal object ${model.tableObjectName} : LongIdTable(${model.tableName.quote()}) {")
         model.properties.filter { it.generateColumn }.forEach { property ->
-            appendLine("        val ${property.name} = ${property.column.render(property)}")
+            appendLine("    val ${property.name} = ${property.column.render(property)}")
         }
         if (model.properties.none { it.name == "createdAt" }) {
-            appendLine("        val createdAt = timestamp(\"created_at\").defaultExpression(CurrentTimestamp)")
+            appendLine("    val createdAt = timestamp(\"created_at\").defaultExpression(CurrentTimestamp)")
         }
         if (model.properties.none { it.name == "updatedAt" }) {
-            appendLine("        val updatedAt = timestamp(\"updated_at\").defaultExpression(CurrentTimestamp)")
+            appendLine("    val updatedAt = timestamp(\"updated_at\").defaultExpression(CurrentTimestamp)")
         }
-        appendLine("    }")
+        appendLine("}")
     }
 
     private fun EntityProperty.shouldAssign(): Boolean {

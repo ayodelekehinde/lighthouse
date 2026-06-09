@@ -12,6 +12,7 @@ data class CrudRepositoryModel(
     val finders: List<Finder>,
 ) {
     val tableObjectName: String = "${entity.simpleName}Table"
+    val tablePackageName: String = packageName.substringBeforeLast('.', packageName) + ".tables"
 }
 
 data class EntityProperty(
