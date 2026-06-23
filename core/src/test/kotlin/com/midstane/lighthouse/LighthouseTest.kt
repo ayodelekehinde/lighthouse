@@ -29,7 +29,7 @@ class LighthouseTest {
                         override val baseRoute: String = "/health"
 
                         override fun registerRoutes(routes: LighthouseRouting) {
-                            routes.get<HealthResponse>("/") {
+                            routes.get<HealthResponse>("") {
                                 HealthResponse(status = "ok")
                             }
                         }
@@ -93,7 +93,7 @@ class LighthouseTest {
                         override val auth: AuthRequirement = AuthRequirement.Required("basic")
 
                         override fun registerRoutes(routes: LighthouseRouting) {
-                            routes.get<HealthResponse>("/") {
+                            routes.get<HealthResponse>("") {
                                 HealthResponse(status = "private")
                             }
                         }
