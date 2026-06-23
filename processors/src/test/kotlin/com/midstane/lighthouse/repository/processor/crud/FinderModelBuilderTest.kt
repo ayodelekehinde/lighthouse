@@ -23,7 +23,7 @@ class FinderModelBuilderTest {
         )
 
         val success = assertIs<FinderBuildResult.Success>(result)
-        assertEquals(Finder("findByAge", "age", age, DerivedQueryKind.FindOne), success.finder)
+        assertEquals(Finder("findByAge", "age", KotlinType("kotlin.Int"), age, DerivedQueryKind.FindOne), success.finder)
     }
 
     @Test
@@ -39,7 +39,7 @@ class FinderModelBuilderTest {
         )
 
         val success = assertIs<FinderBuildResult.Success>(result)
-        assertEquals(Finder("findAllByAge", "age", age, DerivedQueryKind.FindAll), success.finder)
+        assertEquals(Finder("findAllByAge", "age", KotlinType("kotlin.Int"), age, DerivedQueryKind.FindAll), success.finder)
     }
 
     @Test
@@ -55,7 +55,7 @@ class FinderModelBuilderTest {
         )
 
         val success = assertIs<FinderBuildResult.Success>(result)
-        assertEquals(Finder("existsByAge", "age", age, DerivedQueryKind.Exists), success.finder)
+        assertEquals(Finder("existsByAge", "age", KotlinType("kotlin.Int"), age, DerivedQueryKind.Exists), success.finder)
     }
 
     @Test
@@ -71,7 +71,33 @@ class FinderModelBuilderTest {
         )
 
         val success = assertIs<FinderBuildResult.Success>(result)
-        assertEquals(Finder("countByAge", "age", age, DerivedQueryKind.Count), success.finder)
+        assertEquals(Finder("countByAge", "age", KotlinType("kotlin.Int"), age, DerivedQueryKind.Count), success.finder)
+    }
+
+    @Test
+    fun `preserves nullable finder parameter type`() {
+        val email = EntityProperty("email", KotlinType("kotlin.String", nullable = true), ExposedColumn.String)
+        val result = builder.build(
+            function(
+                name = "findByEmail",
+                parameters = listOf(FinderParameter("email", KotlinType("kotlin.String", nullable = true))),
+                returnType = entity.copy(nullable = true),
+            ),
+            entity,
+            listOf(email),
+        )
+
+        val success = assertIs<FinderBuildResult.Success>(result)
+        assertEquals(
+            Finder(
+                functionName = "findByEmail",
+                parameterName = "email",
+                parameterType = KotlinType("kotlin.String", nullable = true),
+                property = email,
+                kind = DerivedQueryKind.FindOne,
+            ),
+            success.finder,
+        )
     }
 
     @Test

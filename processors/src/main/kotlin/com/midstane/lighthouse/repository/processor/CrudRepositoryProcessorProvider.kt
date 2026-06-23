@@ -1,12 +1,6 @@
 package com.midstane.lighthouse.repository.processor
 
-import com.google.devtools.ksp.processing.CodeGenerator
-import com.google.devtools.ksp.processing.Dependencies
-import com.google.devtools.ksp.processing.KSPLogger
-import com.google.devtools.ksp.processing.Resolver
-import com.google.devtools.ksp.processing.SymbolProcessor
-import com.google.devtools.ksp.processing.SymbolProcessorEnvironment
-import com.google.devtools.ksp.processing.SymbolProcessorProvider
+import com.google.devtools.ksp.processing.*
 import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.validate
@@ -43,7 +37,6 @@ private class CrudRepositoryProcessor(
 
     private fun generateRepository(repository: KSClassDeclaration) {
         val model = modelBuilder.build(repository) ?: return
-        val source = renderer.render(model)
         val sourceFile = repository.containingFile ?: run {
             logger.error("Could not determine the source file for ${repository.simpleName.asString()}.", repository)
             return
@@ -54,7 +47,15 @@ private class CrudRepositoryProcessor(
             packageName = model.packageName,
             fileName = model.generatedName,
         ).writer().use { writer ->
-            writer.write(source)
+            writer.write(renderer.renderRepository(model))
+        }
+
+        codeGenerator.createNewFile(
+            dependencies = Dependencies(aggregating = false, sourceFile),
+            packageName = model.tablePackageName,
+            fileName = model.tableObjectName,
+        ).writer().use { writer ->
+            writer.write(renderer.renderTable(model))
         }
     }
 

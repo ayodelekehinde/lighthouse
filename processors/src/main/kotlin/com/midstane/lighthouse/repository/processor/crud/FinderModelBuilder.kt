@@ -35,7 +35,7 @@ class FinderModelBuilder {
         }
 
         val parameter = function.parameters.single()
-        if (parameter.type != property.type) {
+        if (parameter.type.qualifiedName != property.type.qualifiedName) {
             return FinderBuildResult.Error(
                 "Derived query '${function.name}' parameter '${parameter.name}' must be ${property.type.displayName} to match property '$propertyName'.",
             )
@@ -52,6 +52,7 @@ class FinderModelBuilder {
             Finder(
                 functionName = function.name,
                 parameterName = parameter.name,
+                parameterType = parameter.type,
                 property = property,
                 kind = parsedName.kind,
             ),

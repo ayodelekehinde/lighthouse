@@ -7,25 +7,32 @@ class LighthouseRouting(
     @PublishedApi internal val baseRoute: String = "",
 ) {
     fun raw(block: Route.() -> Unit) {
-        routing.block()
+        routeFromBaseUrl {
+            block(this)
+        }
     }
 
     inline fun <reified Response : Any> get(
         path: String,
         crossinline handler: suspend RoutingCall.() -> Response,
     ) {
-        routing.get(resolve(path)) {
-            call.respondResult(call.handler())
+        routeFromBaseUrl {
+            get(path) {
+                call.respondResult(call.handler())
+            }
         }
+
     }
 
     inline fun <reified Request : Any, reified Response : Any> post(
         path: String,
         crossinline handler: suspend RoutingCall.(Request) -> Response,
     ) {
-        routing.post(resolve(path)) {
-            val request = call.body<Request>()
-            call.respondResult(call.handler(request))
+        routeFromBaseUrl {
+            post(path) {
+                val request = call.body<Request>()
+                call.respondResult(call.handler(request))
+            }
         }
     }
 
@@ -33,9 +40,11 @@ class LighthouseRouting(
         path: String,
         crossinline handler: suspend RoutingCall.(Request) -> Response,
     ) {
-        routing.put(resolve(path)) {
-            val request = call.body<Request>()
-            call.respondResult(call.handler(request))
+        routeFromBaseUrl {
+            put(path) {
+                val request = call.body<Request>()
+                call.respondResult(call.handler(request))
+            }
         }
     }
 
@@ -43,9 +52,11 @@ class LighthouseRouting(
         path: String,
         crossinline handler: suspend RoutingCall.(Request) -> Response,
     ) {
-        routing.patch(resolve(path)) {
-            val request = call.body<Request>()
-            call.respondResult(call.handler(request))
+        routeFromBaseUrl {
+            patch(path) {
+                val request = call.body<Request>()
+                call.respondResult(call.handler(request))
+            }
         }
     }
 
@@ -53,22 +64,19 @@ class LighthouseRouting(
         path: String,
         crossinline handler: suspend RoutingCall.() -> Response,
     ) {
-        routing.delete(resolve(path)) {
-            call.respondResult(call.handler())
+        routeFromBaseUrl {
+            delete(path) {
+                call.respondResult(call.handler())
+            }
         }
     }
 
     @PublishedApi
-    internal fun resolve(path: String): String {
-        val normalizedBase = baseRoute.trim().trimEnd('/')
-        val normalizedPath = path.trim()
-
-        return when {
-            normalizedBase.isBlank() -> normalizedPath.ifBlank { "/" }
-            normalizedPath.isBlank() || normalizedPath == "/" -> normalizedBase.ensureLeadingSlash()
-            else -> "${normalizedBase.ensureLeadingSlash()}/${normalizedPath.trimStart('/')}"
+    internal fun routeFromBaseUrl(build: Route.() -> Unit) {
+        if (baseRoute.isNotBlank()) {
+           routing.route(baseRoute, build)
+        } else {
+            routing.build()
         }
     }
 }
-
-private fun String.ensureLeadingSlash(): String = if (startsWith("/")) this else "/$this"

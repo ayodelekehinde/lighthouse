@@ -1,13 +1,61 @@
 package com.midstane.lighthouse.service
 
 import dev.zacsweers.metro.Inject
-import io.ktor.server.config.ApplicationConfig
-import jakarta.mail.MessagingException
-import jakarta.mail.Session
+import io.ktor.server.config.*
+import jakarta.mail.*
+import jakarta.mail.internet.InternetAddress
+import jakarta.mail.internet.MimeMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
-import java.util.Properties
+import java.util.*
+
+
+fun main() {
+    val properties = Properties().apply {
+        put("mail.smtp.host", "smtp.mailgun.org")
+        put("mail.smtp.port", "587")
+        put("mail.smtp.auth", "true")
+        put("mail.smtp.starttls.enable", "true")
+        put("mail.smtp.ssl.enable", "false")
+    }
+
+    // provide recipient's email ID
+    val to = "ayodele.joe.kehinde@gmail.com"
+
+    // provide sender's email ID
+    val from = "support@mg.passmark.ai"
+    val session = Session.getInstance(properties, object: Authenticator(){
+        override fun getPasswordAuthentication(): PasswordAuthentication? {
+            return PasswordAuthentication("support@mg.passmark.ai", "51%%g1]2#1");
+        }
+    })
+    val transport = session.getTransport("smtp")
+    try {
+        val message: Message = MimeMessage(session)
+
+        // set From email field
+        message.setFrom(InternetAddress(from))
+
+        // set To email field
+        message.setRecipient(Message.RecipientType.TO, InternetAddress(to))
+
+        // set email subject field
+        message.setSubject("Hello from the Mailtrap team")
+
+        // set the content of the email message
+        message.setText("Enjoy sending emails from Jakarta Mail!")
+
+
+        // send the email message
+        Transport.send(message)
+        println("Connected to smtp")
+    }catch (e: Exception) {
+        e.printStackTrace()
+    } finally {
+        runCatching { transport.close() }
+    }
+}
 
 @Inject
 class SmtpService(

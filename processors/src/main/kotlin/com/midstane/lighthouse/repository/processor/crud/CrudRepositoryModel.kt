@@ -12,6 +12,7 @@ data class CrudRepositoryModel(
     val finders: List<Finder>,
 ) {
     val tableObjectName: String = "${entity.simpleName}Table"
+    val tablePackageName: String = packageName.substringBeforeLast('.', packageName) + ".tables"
 }
 
 data class EntityProperty(
@@ -25,6 +26,7 @@ data class EntityProperty(
 data class Finder(
     val functionName: String,
     val parameterName: String,
+    val parameterType: KotlinType,
     val property: EntityProperty,
     val kind: DerivedQueryKind = DerivedQueryKind.FindOne,
 )

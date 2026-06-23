@@ -1,13 +1,9 @@
 package com.midstane.lighthouse.controller
 
-import io.ktor.http.HttpHeaders
-import io.ktor.http.HttpStatusCode
-import io.ktor.server.application.ApplicationCall
-import io.ktor.server.plugins.BadRequestException
-import io.ktor.server.request.ContentTransformationException
-import io.ktor.server.request.header
-import io.ktor.server.request.receiveNullable
-import io.ktor.server.response.respond
+import io.ktor.http.*
+import io.ktor.server.application.*
+import io.ktor.server.plugins.*
+import io.ktor.server.request.*
 import kotlinx.serialization.Serializable
 
 interface Validatable {
@@ -53,13 +49,5 @@ fun validateBody(body: Any) {
     val errors = body.validate()
     if (errors.isNotEmpty()) {
         throw RequestValidationException(errors)
-    }
-}
-
-suspend inline fun <reified T : Any> ApplicationCall.respondResult(result: T) {
-    if (result is Unit) {
-        respond(HttpStatusCode.NoContent)
-    } else {
-        ok(result)
     }
 }
