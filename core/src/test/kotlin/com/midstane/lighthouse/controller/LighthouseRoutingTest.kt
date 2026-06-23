@@ -98,6 +98,25 @@ class LighthouseRoutingTest {
     }
 
     @Test
+    fun `post route checks permissions before parsing body`() = testApplication {
+        var handlerCalled = false
+        application {
+            configureTestApplication {
+                post<CreateThingRequest, ThingResponse>("/things", "things:create") { request ->
+                    handlerCalled = true
+                    ThingResponse(name = request.name)
+                }
+            }
+        }
+
+        val response = client.post("/things")
+
+        assertEquals(HttpStatusCode.Forbidden, response.status)
+        assertEquals("""{"message":"Permission denied","errors":[]}""", response.bodyAsText())
+        assertFalse(handlerCalled)
+    }
+
+    @Test
     fun `put route receives body and responds with handler result`() = testApplication {
         application {
             configureTestApplication {
@@ -139,9 +158,7 @@ class LighthouseRoutingTest {
     fun `delete route can respond with no content`() = testApplication {
         application {
             configureTestApplication {
-                delete<Unit>("/things/1") {
-                    Unit
-                }
+                delete<Unit>("/things/1") {}
             }
         }
 
@@ -193,6 +210,12 @@ private fun Application.configureTestApplication(
             call.respond(
                 HttpStatusCode.BadRequest,
                 ErrorResponse(message = cause.message ?: "Bad request"),
+            )
+        }
+        exception<PermissionDeniedException> { call, cause ->
+            call.respond(
+                HttpStatusCode.Forbidden,
+                ErrorResponse(message = cause.message ?: "Permission denied"),
             )
         }
     }

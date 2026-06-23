@@ -111,6 +111,141 @@ class LighthouseTest {
         assertEquals(HttpStatusCode.OK, authorizedResponse.status)
         assertJsonEquals("""{"status":"private"}""", authorizedResponse.bodyAsText())
     }
+
+    @Test
+    fun `lighthouse denies protected route without configured permission authorizer`() = testApplication {
+        application {
+            lighthouse(
+                graph = testGraph(
+                    object : Controller {
+                        override val baseRoute: String = "/admin"
+
+                        override fun registerRoutes(routes: LighthouseRouting) {
+                            routes.get<HealthResponse>("", "admin:read") {
+                                HealthResponse(status = "private")
+                            }
+                        }
+                    },
+                ),
+            )
+        }
+
+        val response = client.get("/admin")
+
+        assertEquals(HttpStatusCode.Forbidden, response.status)
+        assertJsonEquals(
+            """{"success":false,"message":"Permission denied","errors":[]}""",
+            response.bodyAsText(),
+        )
+    }
+
+    @Test
+    fun `lighthouse allows protected route when permission authorizer grants all required permissions`() = testApplication {
+        application {
+            lighthouse(
+                graph = testGraph(
+                    object : Controller {
+                        override val baseRoute: String = "/reports"
+                        override val permissions: Set<String> = setOf("reports:access")
+
+                        override fun registerRoutes(routes: LighthouseRouting) {
+                            routes.get<HealthResponse>("", "reports:read") {
+                                HealthResponse(status = "visible")
+                            }
+                        }
+                    },
+                ),
+            ) {
+                permissionAuthorizer = PermissionAuthorizer { _, required ->
+                    required == setOf("reports:access", "reports:read")
+                }
+            }
+        }
+
+        val response = client.get("/reports")
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertJsonEquals("""{"status":"visible"}""", response.bodyAsText())
+    }
+
+    @Test
+    fun `lighthouse denies protected route when permission authorizer rejects required permissions`() = testApplication {
+        application {
+            lighthouse(
+                graph = testGraph(
+                    object : Controller {
+                        override val baseRoute: String = "/reports"
+
+                        override fun registerRoutes(routes: LighthouseRouting) {
+                            routes.get<HealthResponse>("", "reports:delete") {
+                                HealthResponse(status = "deleted")
+                            }
+                        }
+                    },
+                ),
+            ) {
+                permissionAuthorizer = PermissionAuthorizer { _, required ->
+                    "reports:read" in required
+                }
+            }
+        }
+
+        val response = client.get("/reports")
+
+        assertEquals(HttpStatusCode.Forbidden, response.status)
+        assertJsonEquals(
+            """{"success":false,"message":"Permission denied","errors":[]}""",
+            response.bodyAsText(),
+        )
+    }
+
+    @Test
+    fun `lighthouse keeps authentication and permissions separate`() = testApplication {
+        application {
+            install(Authentication) {
+                basic("basic") {
+                    validate { credentials ->
+                        if (credentials.password == "secret") {
+                            UserIdPrincipal(credentials.name)
+                        } else {
+                            null
+                        }
+                    }
+                }
+            }
+            lighthouse(
+                graph = testGraph(
+                    object : Controller {
+                        override val baseRoute: String = "/admin"
+                        override val auth: AuthRequirement = AuthRequirement.Required("basic")
+
+                        override fun registerRoutes(routes: LighthouseRouting) {
+                            routes.get<HealthResponse>("", "admin:read") {
+                                HealthResponse(status = "private")
+                            }
+                        }
+                    },
+                ),
+            ) {
+                permissionAuthorizer = PermissionAuthorizer { call, required ->
+                    call.principal<UserIdPrincipal>()?.name == "admin" && "admin:read" in required
+                }
+            }
+        }
+
+        val unauthenticatedResponse = client.get("/admin")
+        val unauthorizedResponse = client.get("/admin") {
+            header(HttpHeaders.Authorization, basicAuth("user", "secret"))
+        }
+        val authorizedResponse = client.get("/admin") {
+            header(HttpHeaders.Authorization, basicAuth("admin", "secret"))
+        }
+
+        assertEquals(HttpStatusCode.Unauthorized, unauthenticatedResponse.status)
+        assertEquals(HttpStatusCode.Forbidden, unauthorizedResponse.status)
+        assertEquals(HttpStatusCode.OK, authorizedResponse.status)
+        assertJsonEquals("""{"status":"private"}""", authorizedResponse.bodyAsText())
+    }
 }
 
 private fun testGraph(vararg controllers: Controller): RouteGraph {

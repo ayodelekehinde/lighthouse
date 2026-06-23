@@ -54,6 +54,15 @@ interface Controller {
         get() = AuthRequirement.None
 
     /**
+     * Permissions required by every route in this controller.
+     *
+     * The default empty set keeps routes authorization-free. Route-level permissions declared
+     * through [LighthouseRouting] are combined with this set.
+     */
+    val permissions: Set<String>
+        get() = emptySet()
+
+    /**
      * Registers this controller's routes with the Lighthouse route DSL.
      *
      * Routes are automatically scoped by [baseRoute], and body routes such as
@@ -90,6 +99,13 @@ sealed interface AuthRequirement {
     }
 }
 
+fun interface PermissionAuthorizer {
+    suspend fun hasPermissions(call: ApplicationCall, required: Set<String>): Boolean
+}
+
+class PermissionDeniedException(
+     required: Set<String>,
+) : RuntimeException("Permission denied. Required permissions: ${required.joinToString()}")
 
 suspend inline fun <reified T: Any> ApplicationCall.ok(data: T) {
     respond(status = HttpStatusCode.OK, message = data)

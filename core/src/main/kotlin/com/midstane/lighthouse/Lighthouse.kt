@@ -1,17 +1,18 @@
 package com.midstane.lighthouse
 
+import com.midstane.lighthouse.controller.PermissionAuthorizer
+import com.midstane.lighthouse.controller.PermissionDeniedException
 import com.midstane.lighthouse.controller.RequestValidationException
 import com.midstane.lighthouse.controller.ValidationError
 import com.midstane.lighthouse.dependency.RouteGraph
 import com.midstane.lighthouse.exception.LighthouseException
-import io.ktor.http.HttpStatusCode
-import io.ktor.serialization.kotlinx.json.json
-import io.ktor.server.application.Application
-import io.ktor.server.application.install
-import io.ktor.server.plugins.BadRequestException
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.server.plugins.statuspages.StatusPages
-import io.ktor.server.response.respond
+import io.ktor.http.*
+import io.ktor.serialization.kotlinx.json.*
+import io.ktor.server.application.*
+import io.ktor.server.plugins.*
+import io.ktor.server.plugins.contentnegotiation.*
+import io.ktor.server.plugins.statuspages.*
+import io.ktor.server.response.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -25,6 +26,9 @@ class LighthouseApplicationConfig {
 
     var installContentNegotiation: Boolean = true
     var exposeExceptionMessages: Boolean = false
+    var permissionAuthorizer: PermissionAuthorizer = PermissionAuthorizer { _, required ->
+        required.isEmpty()
+    }
 }
 
 @Serializable
@@ -47,7 +51,7 @@ fun Application.lighthouse(
     }
     installLighthouseStatusPages(config)
 
-    start(graph)
+    start(graph, config.permissionAuthorizer)
 }
 
 fun Application.installLighthouseStatusPages(config: LighthouseApplicationConfig = LighthouseApplicationConfig()) {
@@ -67,8 +71,13 @@ fun Application.installLighthouseStatusPages(config: LighthouseApplicationConfig
                 ErrorResponse(message = cause.message ?: "Bad request"),
             )
         }
+        exception<PermissionDeniedException> { call, _ ->
+            call.respond(
+                HttpStatusCode.Forbidden,
+                ErrorResponse(message = "Permission denied"),
+            )
+        }
         exception<LighthouseException> { call, cause ->
-            //sentry
             call.respond(
                 status = HttpStatusCode.UnprocessableEntity,
                 message = cause.message,
