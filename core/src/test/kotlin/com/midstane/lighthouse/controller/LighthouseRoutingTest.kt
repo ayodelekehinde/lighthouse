@@ -154,7 +154,7 @@ class LighthouseRoutingTest {
     @Test
     fun `raw route registers directly on underlying ktor route`() = testApplication {
         application {
-            configureTestApplication {
+            configureTestApplication("/api") {
                 raw {
                     get("/raw") {
                         call.respond(ThingResponse(name = "raw"))
@@ -163,7 +163,7 @@ class LighthouseRoutingTest {
             }
         }
 
-        val response = client.get("/raw")
+        val response = client.get("/api/raw")
 
         assertEquals(HttpStatusCode.OK, response.status)
         assertEquals("""{"name":"raw"}""", response.bodyAsText())

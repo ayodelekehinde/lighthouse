@@ -94,3 +94,11 @@ sealed interface AuthRequirement {
 suspend inline fun <reified T: Any> ApplicationCall.ok(data: T) {
     respond(status = HttpStatusCode.OK, message = data)
 }
+
+suspend inline fun <reified T : Any> ApplicationCall.respondResult(result: T) {
+    if (result is Unit) {
+        respond(HttpStatusCode.NoContent)
+    } else {
+        ok(result)
+    }
+}

@@ -10,11 +10,6 @@ fun main(args: Array<String>) {
 }
 
 fun Application.init(){
-//    Sentry.init { options ->
-//        options.dsn = "https://5ac93e3dd03c4f7fae7e8756bc47cfba@bugsink.onesignaltech.com/1"
-//        options.environment = "production"
-//        options.tracesSampleRate = 1.0 // Adjust in production to sample traffic
-//    }
     val graph = createGraphFactory<AppGraph.Factory>().create(environment.config)
     lighthouse(graph)
 }

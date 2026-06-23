@@ -159,8 +159,6 @@ class ExposedCrudRepositoryRenderer {
     private fun StringBuilder.appendTransaction(model: CrudRepositoryModel) {
         appendLine("    private suspend fun <T> transaction(block: suspend () -> T): T {")
         appendLine("        return suspendTransaction(database) {")
-        appendLine("            addLogger(StdOutSqlLogger)")
-        //appendLine("            SchemaUtils.createMissingTablesAndColumns(${model.tableObjectName})")
         appendLine("            block()")
         appendLine("        }")
         appendLine("    }")
