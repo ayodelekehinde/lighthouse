@@ -112,7 +112,7 @@ class LighthouseRoutingTest {
         val response = client.post("/things")
 
         assertEquals(HttpStatusCode.Forbidden, response.status)
-        assertEquals("""{"message":"Permission denied","errors":[]}""", response.bodyAsText())
+        assertEquals("""{"message":"Permission denied. Required permissions: things:create","errors":[]}""", response.bodyAsText())
         assertFalse(handlerCalled)
     }
 
